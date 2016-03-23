@@ -1,0 +1,9 @@
+[package]
+name = "path_shifter"
+version = "0.1.0"
+authors = ["David Glivar <davidglivar@gmail.com>"]
+
+[dependencies]
+colored = "1.1"
+getopts = "0.2"
+rustc-serialize = "0.3.18"
