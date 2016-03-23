@@ -4,9 +4,10 @@ extern crate rustc_serialize;
 
 use colored::*;
 use getopts::Options;
-use rustc_serialize::json::Json;
+use rustc_serialize::json::{Json /*, ToJson, Object*/};
 use std::env;
 use std::error::Error;
+use std::f64::{MAX};
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
@@ -29,8 +30,6 @@ fn do_work(input: &str, output: Option<String>) {
         Ok(file) => file,
     };
 
-    println!("{:?}", input_file);
-
     let mut input_str = String::new();
     match input_file.read_to_string(&mut input_str) {
         Err(why) => panic!("couldn't read {}: {}", display, Error::description(&why)),
@@ -39,16 +38,53 @@ fn do_work(input: &str, output: Option<String>) {
 
     let input_data = Json::from_str(&input_str).unwrap();
     println!("data: {}", input_data);
-    println!("data is object? {}", input_data.is_object());
-    println!("data is array? {}", input_data.is_array());
 
-    shift_array(&input_data);
-    // input_data would be inaccessible here if i did not pass it as a reference
-    println!("data is array? {}", input_data.is_array());
+    if input_data.is_array() {
+        shift_array(input_data);
+    }
 }
 
-fn shift_array(json: &Json) {
-    println!("ok {}", json.is_array());
+fn shift_array(json: Json) {
+    let mut arr = json.as_array().unwrap();
+    'a: for item in arr {
+        let obj = match item.as_object() {
+            Some(o) => { o },
+            None => { continue 'a; },
+        };
+
+        let mut minx: f64 = MAX;
+        let mut miny: f64 = MAX;
+
+        'b: for (key, value) in obj.iter() {
+
+            println!("key: {}, value: {}", key, value);
+            match *value {
+                Json::Array(ref a) => {
+                    let resolved = a
+                        .iter()
+                        .map(|n| {
+                            match *n {
+                                Json::U64(i) => { i as f64 },
+                                Json::I64(i) => { i as f64 },
+                                Json::F64(i) => { i },
+                                _ => { panic!("Unexpected type"); }
+                            }
+                        })
+                        .collect::<Vec<f64>>();
+
+                    for (idx, n) in resolved.iter().enumerate() {
+                        if idx % 2 == 0 {
+                            minx = n.min(minx);
+                        } else {
+                            miny = n.min(miny);
+                        }
+                    }
+                },
+                _ => { continue 'b; },
+            }
+            println!("minx: {}, miny: {}", minx, miny);
+        }
+    }
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -61,8 +97,10 @@ fn main() {
     let program = args[0].clone();
 
     let mut opts = Options::new();
-    opts.optopt("o", "output", "set the output file path", "NAME");
     opts.optflag("h", "help", "print this help menu");
+    opts.optopt("o", "output", "set the output file path", "NAME");
+    opts.optopt("x", "", "set the x point to translate to", "X");
+    opts.optopt("y", "", "set the y point to translate to", "Y");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m)  => { m }
